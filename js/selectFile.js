@@ -1,8 +1,8 @@
 function handleFileSelect(target) {
-	var element = document.createElement("div");
+	/*var element = document.createElement("div");
 	var node = document.createTextNode("handleFileSelect() called from "+ target)
 	element.appendChild(node);
-	document.body.insertBefore(element, target.nextSibling);
+	document.body.insertBefore(element, target.nextSibling);*/
     var fileList = target.files;
     var f = fileList[0];
     var reader = new FileReader();
@@ -14,7 +14,7 @@ function handleFileSelect(target) {
     	xmlDoc = parser.parseFromString(text,"text/xml");
     	var map = new TMXMap(xmlDoc);
 		console.log(map);
-		loadTMX(xmlDoc)
+		//loadTMX(xmlDoc)
     }
 
     reader.readAsText(f);

@@ -1,109 +1,121 @@
 function TMXMap(xmlDoc) {
 	var map = xmlDoc.getElementsByTagName('map')[0];
 	this.width = map.getAttribute('width');
-	this.height = map.getAttribute('tileheight');
+	this.height = map.getAttribute('height');
 	this.tileWidth = map.getAttribute('tilewidth');
 	this.tileHeight = map.getAttribute('tileheight');
-	this.properties = {};
-	this.tilesets = {};
-	this.layers = {};
-	this.objectgroups = {};
 
-	var properties = map.getElementsByTagName('properties')[0];
-	for(var i = 0; i < properties.children.length; i++){
-		var property = properties.children[i];
+	this.properties = {};
+	var propertiesElement = map.getElementsByTagName('properties')[0];
+	for(var i = 0; i < propertiesElement.children.length; i++){
+		var property = propertiesElement.children[i];
 		this.properties[property.getAttribute("name")] = property.getAttribute("value");
 	}
 
+	this.tilesets = [];
+	var tilesetElements = map.getElementsByTagName('tileset');
+	var tilesetImagesNeeded = new Set();
+	for(var i = 0; i < tilesetElements.length; i++){
+		this.tilesets[i] = new TileSet(tilesetElements[i]);
+		tilesetImagesNeeded.add(this.tilesets[i].source);
+	}
+	var imagesNeededElement = document.createElement("div");
+	var node = document.createTextNode("Following images are needed:");
+	imagesNeededElement.appendChild(node);
+	tilesetImagesNeeded.forEach(function(value1, value2, set){
+		var divElement = document.createElement("div");
+		divElement.id = value1;
+		var node = document.createTextNode(value1);
+		divElement.appendChild(node);
+		imagesNeededElement.appendChild(divElement);
+	});
+	document.body.appendChild(imagesNeededElement);
+
+	var inputDivElement = document.createElement("div");
+	var inputElement = document.createElement("input");
+	inputElement.setAttribute("type","file");
+	inputElement.setAttribute("id","imageInput");
+	inputElement.multiple = true;
+	inputElement.onchange=function(){
+		for (var i = 0; i < this.files.length; i++) {
+			var fileName = this.files[i].name;
+			if(tilesetImagesNeeded.has(fileName)){
+				tilesetImagesNeeded.delete(fileName);
+				var element = document.getElementById(fileName);
+				element.parentNode.removeChild(element);
+				var file = this.files[i];
+				//LOAD IMAGE
+				loadImage(file, function (img) {
+					img.style.margin = "10px";
+						document.body.appendChild(img);
+					});
+			}
+		};
+		this.files = [];
+		console.log(tilesetImagesNeeded);
+		if(tilesetImagesNeeded.size == 0){
+			imagesNeededElement.parentNode.removeChild(imagesNeededElement);
+		}
+	};
+	inputDivElement.appendChild(inputElement);
+	document.body.appendChild(inputDivElement);
+
+	var layerElement = map.getElementsByTagName('layer')[0];
+	this.layer = getLayerData(layerElement);
+
+
+	this.objectgroups = {};
+
+	//printLayerData(this.layer, this.width, this.height);
 }
 
-function loadTMX(xmlDoc){
+function TileSet(tilesetElement){
+	this.firstGid = tilesetElement.getAttribute("firstgid");
+	this.name = tilesetElement.getAttribute("name");
+	this.tileWidth = tilesetElement.getAttribute("tilewidth");
+	this.tileHeight = tilesetElement.getAttribute("tileheight");
 
-	var map = xmlDoc.getElementsByTagName('map')[0];
-	console.log(map);
-	parseMap(map);
+	var imageElement = tilesetElement.getElementsByTagName("image")[0];
+	this.source = imageElement.getAttribute("source");
+	this.width = imageElement.getAttribute("width");
+	this.height = imageElement.getAttribute("height");
 
-	/*
-	var oSerializer = new XMLSerializer();
-	var sXML = oSerializer.serializeToString(xmlDoc);
-	appendTextElement(sXML);
-	*/
+	this.tiles = [];
+	var tileElements = tilesetElement.getElementsByTagName("tile");
+	for (var i = 0; i < tileElements.length; i++) {
+		this.tiles[i] = new Tile(tileElements[i]);
+	};
 }
 
-function parseMap(map){
+function Tile(tileElement){
+	var properties = {};
+	var propertiesElements = tileElement.getElementsByTagName("properties")[0].children;
+	for (var i = 0; i < propertiesElements.length; i++) {
+		var propertyElement = propertiesElements[i];
+		properties[propertyElement.getAttribute("name")] = propertyElement.getAttribute("value");
+	};
+}
 
-	parseAttributes(map);
+
+function printLayerData(tileArray, width, height){
+	for(var y = 0; y < height; y++){
+		var line = "";
+		for(var x = 0; x < width; x++){
+			var tile = tileArray[y*width+x];
+			var paddedTile = ("....." + tile).slice(-3);
+			line += paddedTile + "|";
+		}
+		appendMonospaceTextElement(line);
+	}
 	appendBr();
-	for(var i = 0; i < map.children.length; i++){
-		var element = map.children[i];
-		appendTextElement(element.tagName);
-		switch(element.tagName){
-			case "properties" : parseProperties(element); break;
-			case "tileset" : parseTileset(element); break;
-			case "layer" : parseLayer(element); break;
-			case "objectgroup" : parseObjectgroup(element); break;
-		}
-		appendBr();
-	}
 }
 
-function parseAttributes(element){
-	for(var i = 0; i < element.attributes.length; i++){
-		var attr = element.attributes.item(i);
-		appendTextElement(attr.name +"="+attr.value);
-	}
-}
-
-function parseProperties(properties){
-	for(var i = 0; i < properties.children.length; i++){
-		var property = properties.children[i];
-		parseProperty(property);
-	}
-}
-
-function parseTileset(tileset){
-	for(var i = 0; i < tileset.children.length; i++){
-		var element = tileset.children[i];
-		switch(element.tagName){
-			case "image" : parseImage(element); break;
-			//case "tile" : parseTile(element); break;
-		}
-	}
-}
-
-function parseLayer(layer){
+function getLayerData(layer){
+	//Decode base64 and uncompress zlib
 	var data = layer.firstElementChild;
-	appendTextElement("encoding="+data.getAttribute("encoding"));
-	appendTextElement("compression="+data.getAttribute("compression"));
-	//console.log(data.childNodes[0].nodeValue);
 	var dataString = data.childNodes[0].nodeValue;
-	appendTextElement("EncodedData="+dataString);
 	var decodedData = window.atob(dataString);
-	appendTextElement("DecodedData="+decodedData);
-	var uncompressedData = pako.deflate(decodedData);
-	appendTextElement("UncompressedData="+uncompressedData);
-}
-
-function parseObjectgroup(objectgroup){
-	for(var i = 0; i < objectgroup.children.length; i++){
-		var object = objectgroup.children[i];
-		parseAttributes(object);
-		appendBr();
-	}
-}
-
-
-
-function parseProperty(property){
-	appendTextElement(property.getAttribute("name")+"="+property.getAttribute("value"));
-}
-
-function parseImage(image){
-	parseAttributes(image);
-}
-
-function parseTile(tile){
-	parseAttributes(tile);
-	var properties = tile.firstElementChild;
-	parseProperties(properties);
+	var uncompressedDataUint8 = pako.inflate(decodedData);
+	var uint32array = new Uint32Array(uncompressedDataUint8.buffer);
+	return uint32array;
 }
